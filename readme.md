@@ -25,7 +25,6 @@
 
 | Підрозділ | Зміст | Файли |
 | --- | --- | --- |
-| 4.1.1 | Синтез базової дискретної моделі змінних, обмежень і критерію оптимізації | `Chapter4/Chapter4.1/CpSatSolution.py`, `Chapter4/Common/ProblemDefinition.py` |
 | 4.1.2 | Програмна реалізація дискретної моделі засобами CP-SAT | `Chapter4/Chapter4.1/CpSatSolution.py` |
 | 4.1.3 | Масштабування через декомпозицію на підзадачі | `Chapter4/Chapter4.1/CpSatSolutionBatch.py` |
 | 4.2 | Reinforcement Learning підхід до планування виробничих замовлень | `Chapter4/Chapter4.2/ReinforcementLearningEnvironmentOptimized.py` |

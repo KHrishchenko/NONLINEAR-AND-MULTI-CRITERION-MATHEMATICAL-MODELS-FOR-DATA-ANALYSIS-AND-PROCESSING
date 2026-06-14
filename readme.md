@@ -1,42 +1,75 @@
-# Chapter 4: Flexible Job Shop Scheduling
+# Розділ 4. Багатокритеріальні моделі розподілу обмежених ресурсів
 
-## Опис
+## Призначення коду
 
-Цей розділ містить приклади для задачі планування у гнучкому виробничому середовищі
-(Flexible Job Shop Scheduling Problem, FJSP). У репозиторії є два підходи:
+Цей репозиторій містить програмні приклади до розділу 4, присвяченого задачі
+планування виробничих замовлень в умовах обмежених ресурсів.
 
-- точна оптимізація за допомогою OR-Tools CP-SAT;
-- навчання агентів Reinforcement Learning на основі PPO, Maskable PPO, Recurrent PPO
-  та Recurrent Maskable PPO.
+У задачі кожне замовлення подається як направлений граф(DAG) операцій, де вершини
+відповідають окремим операціям, а ребра задають порядок їх
+виконання. Необхідно призначити ці операції за альтернативним гетерогенним ресурсам
+з різною продуктивністю, не порушуючи послідовності та не допускаючи
+одночасного виконання операцій на одному ресурсі.
 
-Реалізація поєднаного recurrent-maskable підходу базується на ідеях з проєкту:
-https://github.com/wdlctc/recurrent_maskable
+Результатом є розклад із визначеним ресурсу, часу початку й завершення кожної операції.
+
+У коді реалізовано основні напрями розділу:
+
+- дискретна модель планування на основі CP-SAT `INT_LIN_MK`;
+- декомпозицію `INT_LIN_BATCH_MK`;
+- середовище навчання з підкріпленням для планування замовлень;
+- PPO, Maskable PPO, Recurrent PPO та Recurrent Maskable PPO моделі навчання з підкріпленням для побудови
+  розкладів.
+
+## Структура підрозділів
+
+| Підрозділ | Зміст | Файли |
+| --- | --- | --- |
+| 4.1.1 | Синтез базової дискретної моделі змінних, обмежень і критерію оптимізації | `Chapter4/Chapter4.1/CpSatSolution.py`, `Chapter4/Common/ProblemDefinition.py` |
+| 4.1.2 | Програмна реалізація дискретної моделі засобами CP-SAT | `Chapter4/Chapter4.1/CpSatSolution.py` |
+| 4.1.3 | Масштабування через декомпозицію на підзадачі | `Chapter4/Chapter4.1/CpSatSolutionBatch.py` |
+| 4.2 | Reinforcement Learning підхід до планування виробничих замовлень | `Chapter4/Chapter4.2/ReinforcementLearningEnvironmentOptimized.py` |
+| 4.2.2 | Формування простору станів та простору дій | `Chapter4/Chapter4.2/ReinforcementLearningEnvironmentOptimized.py` |
+| 4.2 | Порівняння PPO та Masked PPO | `Chapter4/Chapter4.2/PPOTraining.py`, `Chapter4/Chapter4.2/MaskablePPOTraining.py` |
 
 ## Структура проєкту
 
 ```text
 Chapter4/
 ├── Chapter4.1/
-│   ├── CpSatSolution.py                 # CP-SAT оптимізація для згенерованого набору замовлень
-│   └── CpSatSolutionBatch.py            # CP-SAT оптимізація пакетами
+│   ├── CpSatSolution.py                 # Базова CP-SAT модель INT_LIN_MK
+│   └── CpSatSolutionBatch.py            # Пакетна модель INT_LIN_BATCH_MK
 ├── Chapter4.2/
-│   ├── PPOTraining.py                   # Базове PPO-навчання
-│   ├── MaskablePPOTraining.py           # PPO з маскуванням недопустимих дій
-│   ├── RecurrentPPOTraining.py          # PPO з LSTM-політикою
-│   ├── RecurrentMaskablePPOTraining.py  # PPO з LSTM та маскуванням дій
-│   ├── ReinforcementLearningEnvironmentOptimized.py
-│   └── MaskableRecurentPPO/             # Локальна реалізація recurrent-maskable PPO
+│   ├── PPOTraining.py                   # Базове PPO без маскування дій
+│   ├── MaskablePPOTraining.py           # PPO з маскою допустимих дій
+│   ├── ReinforcementLearningEnvironmentOptimized.py  # Середовище для навчання моделей
 ├── Common/
 │   ├── GantChartVisualizer.py           # Побудова Gantt-діаграм
-│   ├── InputGenerator.py                # Генерація вхідних даних
-│   ├── ProblemDefinition.py             # Опис замовлень, операцій і машин
-│   └── ProblemSolution.py               # Структура розв'язку
+│   ├── InputGenerator.py                # Генерація вхідних даних (замовлень, операцій і ресурсів)
+│   ├── ProblemDefinition.py             # Структура вхідних даних
+│   └── ProblemSolution.py               # Структура сформованого розкладу
 └── requirements.txt
 ```
 
-## Підготовка середовища
+## Базова дискретна модель планування
 
-Команди нижче потрібно виконувати з кореня репозиторію.
+У розділі 4 замовлення описується як направлений ациклічний граф операцій.
+Вершини графа відповідають виробничим операціям, а ребра задають технологічний
+порядок виконання. Ресурсами є гетерогенне виробниче обладнання, яке може
+виконувати різні операції з різною продуктивністю.
+
+Розв'язок задачі включає:
+
+- призначення кожної операції рівно одному ресурсу;
+- визначення часу початку та завершення кожної операції;
+- дотримання технологічного порядку операцій у замовленні;
+- заборону перетину часу операцій, що виконуються одним ресурсом;
+
+У коді це відображено через булеві змінні призначення операції на ресурс,
+інтервальні змінні CP-SAT, обмеження `add_no_overlap`, обмеження попередників та
+цільову функцію `minimize(makespan)`.
+
+## Підготовка середовища
 
 ```bash
 cd Chapter4
@@ -44,85 +77,29 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+## Приклад 1. 4.1.1 Базова дискретна модель INT_LIN_MK
 
-Для Windows PowerShell активація середовища має такий вигляд:
+Скрипт `CpSatSolution.py` відповідає базовій дискретній моделі `INT_LIN_MK`.
 
-```powershell
-cd Chapter4
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+## Приклад 2. 4.1.3 Масштабована модель INT_LIN_BATCH_MK
 
-## Приклад 1. CP-SAT оптимізація
+Скрипт `CpSatSolutionBatch.py` відповідає підходу з масштабуванням
+Параметр розміру батча у коді задається як
+`BATCH_SIZE`.
 
-Скрипт `CpSatSolution.py` генерує набір замовлень, будує CP-SAT модель,
-мінімізує довжину розкладу та виводить знайдений розклад.
+## Приклад 3. 4.2.1 Середовище навчання з підкріпленням
 
-```bash
-cd Chapter4
-PYTHONPATH=. python Chapter4.1/CpSatSolution.py
-```
+Файл `ReinforcementLearningEnvironmentOptimized.py` реалізує середовище, в якому
+агент поступово формує розклад. Дія кодує пару:
 
-Після успішного запуску в консолі з'являться:
+## Приклад 4. 4.2.2 Простір дій без маскування: PPO
 
-- статистика CP-SAT моделі;
-- кількість знайдених розв'язків;
-- довжина розкладу;
-- розподіл операцій за машинами;
-- Gantt-діаграма.
+Базовий PPO навчається у тому самому середовищі, але не виключає недопустимі дії
+з простору вибору.
 
-## Приклад 2. CP-SAT оптимізація пакетами
+## Приклад 5. 4.2.2 Маскування недопустимих дій: Maskable PPO
 
-Скрипт `CpSatSolutionBatch.py` розбиває множину замовлень на пакети та поступово
-додає їх до розкладу.
-
-```bash
-cd Chapter4
-PYTHONPATH=. python Chapter4.1/CpSatSolutionBatch.py
-```
-
-Цей приклад зручний для демонстрації того, як точний метод можна застосовувати
-до більшої кількості замовлень без одночасного розв'язання всієї задачі.
-
-## Приклад 3. Навчання Maskable PPO
-
-Скрипт `MaskablePPOTraining.py` навчає агента, який отримує маску допустимих дій.
-Це запобігає вибору операцій, які не можна виконати в поточному стані середовища.
-
-```bash
-cd Chapter4
-PYTHONPATH=.:Chapter4.2 python Chapter4.2/MaskablePPOTraining.py
-```
-
-Під час запуску створюється директорія `tensorboard_logs/`, а навчена модель
-зберігається у файл `flexible_job_shop_ppo_model_multi_input_masked_actions.zip`.
-
-## Приклад 4. Навчання Recurrent PPO
-
-Скрипт `RecurrentPPOTraining.py` використовує LSTM-політику, яка може враховувати
-послідовність попередніх станів.
-
-```bash
-cd Chapter4
-PYTHONPATH=.:Chapter4.2 python Chapter4.2/RecurrentPPOTraining.py
-```
-
-Навчена модель зберігається у файл
-`flexible_job_shop_recurrent_ppo_model_multi_input.zip`.
-
-## Приклад 5. Навчання Recurrent Maskable PPO
-
-Скрипт `RecurrentMaskablePPOTraining.py` поєднує LSTM-політику з маскуванням
-недопустимих дій.
-
-```bash
-cd Chapter4
-PYTHONPATH=.:Chapter4.2 python Chapter4.2/RecurrentMaskablePPOTraining.py
-```
-
-Цей варіант є найскладнішим серед наведених прикладів і потребує більше часу на
-навчання, оскільки за замовчуванням використовує `500_000` кроків.
+`MaskablePPOTraining.py` навчає агента з маскуванням недопустимих дій.
 
 ## TensorBoard
 
@@ -132,7 +109,7 @@ PYTHONPATH=.:Chapter4.2 python Chapter4.2/RecurrentMaskablePPOTraining.py
 tensorboard --logdir tensorboard_logs
 ```
 
-Після запуску відкрийте адресу:
+Після запуску відкрийте:
 
 http://localhost:6006/
 
@@ -145,20 +122,3 @@ tensorboard_logs/
     ├── masked/
     └── recurrent/
 ```
-
-## Запуск з PyCharm
-
-1. Відкрийте у PyCharm кореневу папку репозиторію.
-2. Створіть або виберіть Python-інтерпретатор для `Chapter4/.venv`.
-3. У конфігурації запуску встановіть робочу директорію `Chapter4`.
-4. Додайте до `PYTHONPATH` значення `.` для CP-SAT прикладів або
-   `.:Chapter4.2` для RL-прикладів.
-5. Запустіть потрібний файл з `Chapter4.1` або `Chapter4.2`.
-
-## Примітки для використання прикладів у книзі
-
-- `Chapter4.1` демонструє математичне моделювання FJSP через обмеження CP-SAT.
-- `Chapter4.2` демонструє формулювання тієї самої прикладної області як RL-середовища.
-- Для швидких демонстрацій у книзі можна зменшити параметр `steps` у training-файлах.
-- Для відтворюваності експериментів варто явно фіксувати seed у генераторі даних,
-  середовищі та алгоритмі навчання.
